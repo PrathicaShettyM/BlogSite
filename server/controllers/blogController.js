@@ -248,10 +248,11 @@ exports.getBookmarks = async (req, res) => {
 // 11. search and pagenation
 exports.getBlogsWithQuery = async (req, res) => {
     try {
+        // 1. Search feature
         let {page=1, limit=10, author, tags, sortBy} = req.query;
         const query = {};
 
-        // implement pagenation with authors
+        // 1.1 search based on user (author)
         if(author){
             const user = await User.findOne({name: new RegExp(author, 'i')});
             if(user){
@@ -261,12 +262,13 @@ exports.getBlogsWithQuery = async (req, res) => {
             }
         }
 
-        // implement pagenation using tags
+        // 1.2 search based on tags
         if(tags){
             const tagArray = tags.split(',');
             query.tags = {$in: tagArray};
         }
 
+        // 2. Pagenation and sorting
         let sortOptions = {createdAt: -1};
         if(sortBy === 'likes') sortOptions = {likesCount: -1};
         else if(sortBy === 'ratings') sortOptions = {avgRating: -1};
@@ -290,5 +292,27 @@ exports.getBlogsWithQuery = async (req, res) => {
         res.status(500).json({
             error: err.message
         }); // 500: internal server error
+    }
+}
+
+// 12. Profile page
+exports.profilePage = async (req, res) => {
+    try {
+        // fetch the user
+        const user = await User.findOne(req.user._id)
+        .select('-password')
+        .populate('bookmarkedBlogs', 'title createdAt');
+
+        res.json({
+            name: user.name,
+            email: user.email,
+            location: user.location,
+            bio: user.bio,
+            bookmarkedBlogs: user.bookmarkedBlogs
+        });
+    } catch (err) {
+        res.status(500).json({
+            error: err.message
+        })
     }
 }

@@ -16,6 +16,20 @@ const UserSchema = new mongoose.Schema({
     googleId: {
         type: String
     }, // for google login
+    location: {
+        type: String,
+        required: true,
+    },
+    bio: {
+        type: String,
+        required: true,
+        minLength: 10,
+        maxLength: 25
+    },
+    bookmarkedBlogs: [{
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Blog',
+    }]
 }, {
     timestamps: true
 });

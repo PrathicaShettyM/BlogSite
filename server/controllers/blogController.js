@@ -1,4 +1,5 @@
 const Blog = require('../models/Blog');
+const User = require('../models/User');
 
 // Do CRUD operations: Create, Read, Update Delete
 // Then do Ratings, Bookmarks, Likes functionalities
@@ -243,3 +244,51 @@ exports.getBookmarks = async (req, res) => {
     const user = await Blog.findById(req.user._id).populate('bookmarkedBlogs');
     res.json(user.bookmarkedBlogs);
 };
+
+// 11. search and pagenation
+exports.getBlogsWithQuery = async (req, res) => {
+    try {
+        let {page=1, limit=10, author, tags, sortBy} = req.query;
+        const query = {};
+
+        // implement pagenation with authors
+        if(author){
+            const user = await User.findOne({name: new RegExp(author, 'i')});
+            if(user){
+                query.author = user._id;
+            } else {
+                return res.json([]);
+            }
+        }
+
+        // implement pagenation using tags
+        if(tags){
+            const tagArray = tags.split(',');
+            query.tags = {$in: tagArray};
+        }
+
+        let sortOptions = {createdAt: -1};
+        if(sortBy === 'likes') sortOptions = {likesCount: -1};
+        else if(sortBy === 'ratings') sortOptions = {avgRating: -1};
+
+        // write aggregation query
+        const blogs = await Blog.aggregate([
+            {$match: query},
+            {
+                $addFields: {
+                    likesCount: {$size: "$likes"},
+                    avgRating: {$avg: "$ratings.rating"}
+                }
+            },
+            {$sort: sortOptions},
+            {$skip : (page-1)*limit},
+            {$limit: parseInt(limit)}
+        ]);
+
+        res.json(blogs);
+    } catch (err) {
+        res.status(500).json({
+            error: err.message
+        }); // 500: internal server error
+    }
+}

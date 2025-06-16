@@ -4,25 +4,77 @@ const Blog = require('../models/Blog');
 // 1. Create Blog
 exports.createBlog = async (req, res) => {
     try {
-        // grab the blog from the request body: the title, content and tags
+        // 1. grab the blog from the request body: the title, content and tags
         const {title, content, tags} = req.body;
         
-        // create blog
+        // 2. create blog
         const blog = await Blog.create({title, content, tags, author: user._id });
-        res.send(201).json(blog); // blog created successfully
+        res.send(201).json(blog); // 201: created successfully
     } catch (err) {
         res.status(400).json({
             error: err.message
-        });
+        }); // 400: Bad request (server cant process or client-side error)
     }
 };
 
 // 2. Get all the blogs
 exports.getAllBlogs = async (req, res) => {
     try {
-        // fetch the blog and associated author
+        // 1. fetch the blog and associated author
         const blogs = await Blog.find().populate('author', 'username').sort({createdAt: -1});
         res.json(blogs);
+    } catch (err) {
+        res.status(500).json({
+            error: err.message
+        }); // 500: Internal server error
+    }
+};
+
+// 3. Get blogs by id
+exports.getBlogsById = async (req, res) => {
+    try {
+        // 1. find the blogs by id
+        const blog = await Blog.findById(req.params,id).populate('author', 'username');
+        
+        // 2. check if the blog exits
+        if(!blog){
+            return res.send(404).json({
+                message: 'Blog not found'
+            }); // 404: not found
+        }
+    } catch (err) {
+        res.status(500).json({
+            error: err.message 
+        }); // 500: Internal server error
+    }
+}
+
+// 4. Update the blogs (only by the author)
+exports.updateBlog = async (req, res) => {
+    try {
+    // 1. fetch the author
+        const blog = await Blog.findById(req.params.id);
+        if(!blog){
+            res.status(404).json({
+                message: 'Blog not found'
+            }); // 404: Not found
+        }
+    // 2. check if the user is authorised to update the blog
+        if(blog.author.toString() !== req.user._id){
+            return res.status(403).json({
+                message: 'Unauthorised'
+            }); // 403: Forbidden/Unauthorised
+        }
+    
+    // 3. Update logic: keep the previous title, content as it is. just see if ur able to get new content/title from req.body
+        blog.title = blog.title || req.body.title;
+        blog.content = blog.content || req.body.content;
+        blog.tags = blog.tags || req.body.tags;
+        blog.updatedAt = Date.now();
+    
+    // 4. save the changes     
+        await blog.save();
+        res.json(blog);
     } catch (err) {
         res.status(500).json({
             error: err.message
@@ -30,43 +82,83 @@ exports.getAllBlogs = async (req, res) => {
     }
 };
 
-// 3. Get blogs by id
-exports.getBlogsById = async (req, res) => {
+// 5. Delete blogs (only by the author)
+exports.deleteBlogs = async (req, res) => {
     try {
-        const blog = await Blog.findById(req.params,id).populate('author', 'username');
+        // 1. find the blog
+        const blog = await Blog.findById(req.params.id);
+        
+        // 2. check if the blog exists
         if(!blog){
-            return res.send(404).json({
+            return res.status(404).json({
                 message: 'Blog not found'
             });
         }
+
+        // 3. check if the user is authorised to delete the blog
+        if(blog.author.toString !== req.user._id){
+            return res.status(403).json({
+                message: 'Unauthorised'
+            });
+        }
+
+        // 4. delete the blog record
+        await blog.deleteOne();
+        res.json({
+            message: 'Blog deleted successfully'
+        });
     } catch (err) {
         res.status(500).json({
-            error: err.message 
+            error: err.message
         });
     }
 }
 
-// 4. Update the blogs (only by the author)
-exports.updateBlog = async (req, res) => {
-
-
-
-
-}
-
-// 5. Delete blogs (only by the author)
-exports.deleteBlogs = async (req, res) => {
-
-
-
-}
-
 // 6. Like feature
-exports.likeBlog = async (req, res) => {
+exports.toggleLike = async (req, res) => {
+    try {
+        // 1. liking a blog is like toggling a switch: toggle to true or false / on or off
+        const blog = await Blog.findById(req.params.id);
+        // 2. check if the blog exits
+        if(!blog){
+            return res.status(404).json({
+               message: 'Blog not found'
+            });
+        }
 
+        // 3. check the state of the like button
+        const alreadyLiked = blog.likes.includes(req.user._id);
+        
+        // 4. toggle the state
+        if(alreadyLiked){ // if already liked: unlike it 
+            blog.likes.pull(req.user._id);
+        } else { // if not liked yet: like it
+            blog.likes.push(req.user._id);
+        }
+
+        // 5. save changes
+        await blog.save();
+        res.json({
+            totalLikes: blog.likes.length
+        });
+    } catch (err) {
+        res.status(500).json({
+            error: err.message
+        });
+    }
 }
 
 // 7. Get blogs based on tags
 exports.getBlogsByTag = async (req, res) => {
-
+    try {
+        // grab the tag by querying for it
+        const { tag } = req.query;
+        // find the blogs based on the tags
+        const blogs = await Blog.find({tags: tag}).populate('author', 'username');
+        res.json(blogs);
+    } catch (error) {
+        res.status(500).json({
+            error: err.message
+        });
+    }
 }

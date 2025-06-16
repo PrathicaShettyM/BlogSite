@@ -296,7 +296,7 @@ exports.getBlogsWithQuery = async (req, res) => {
 }
 
 // 12. Profile page
-exports.profilePage = async (req, res) => {
+exports.getUserProfile = async (req, res) => {
     try {
         // fetch the user
         const user = await User.findOne(req.user._id)
@@ -314,5 +314,27 @@ exports.profilePage = async (req, res) => {
         res.status(500).json({
             error: err.message
         })
+    }
+}
+
+exports.updateUserProfile = async (req, res) => {
+    try {
+        // grab data which is to be updated: name, location, bio
+        const { name, location, bio } = req.body;
+
+        const updateUser = await User.findByIdAndUpdate(
+            req.user._id,
+            {name, location, bio},
+            {new: true}
+        ).select('password');
+
+        res.json({
+            message: 'Profile updated successfully',
+            profile: updateUser
+        });
+    } catch (err) {
+        res.status(500).json({
+            error: err.message
+        });
     }
 }

@@ -1,6 +1,8 @@
 const Blog = require('../models/Blog');
 
 // Do CRUD operations: Create, Read, Update Delete
+// Then do Ratings, Bookmarks, Likes functionalities
+
 // 1. Create Blog
 exports.createBlog = async (req, res) => {
     try {

@@ -16,13 +16,12 @@ mongoose.connect(process.env.MONGO_URI)
 // instantiate all the routes
 const authRoute = require('./routes/auth.route');
 const blogRoutes = require('./routes/blog.route');
-
+const commentRoutes = require('./routes/comment.route');
 
 // use the routes
 app.use('/api/auth', authRoute);
 app.use('/api/blogs', blogRoutes);
-
-
+app.use('/api/comment', commentRoutes);
 
 // run the express server
 const port = process.env.PORT || 3000;

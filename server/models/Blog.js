@@ -31,6 +31,26 @@ const blogSchema = new mongoose.Schema({
             ref: 'User'
         }
     ],
+    ratings: [
+        {
+            user: {
+                type: mongoose.Schema.Types.ObjectId,
+                ref: 'User'
+            },
+            value: {
+                type: Number,
+                min: 1,
+                max: 5,
+                required: true
+            }
+        }
+    ],
+    bookmarks: [
+        {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'Blog'
+        }
+    ],
     createdAt: {
         type: Date,
         default: Date.now

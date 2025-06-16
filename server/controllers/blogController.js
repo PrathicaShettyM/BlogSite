@@ -39,7 +39,7 @@ exports.getBlogsById = async (req, res) => {
         // 2. check if the blog exits
         if(!blog){
             return res.send(404).json({
-                message: 'Blog not found'
+                message: "Blog not found"
             }); // 404: not found
         }
     } catch (err) {
@@ -56,13 +56,13 @@ exports.updateBlog = async (req, res) => {
         const blog = await Blog.findById(req.params.id);
         if(!blog){
             res.status(404).json({
-                message: 'Blog not found'
+                message: "Blog not found"
             }); // 404: Not found
         }
     // 2. check if the user is authorised to update the blog
         if(blog.author.toString() !== req.user._id){
             return res.status(403).json({
-                message: 'Unauthorised'
+                message: "Unauthorised"
             }); // 403: Forbidden/Unauthorised
         }
     
@@ -91,28 +91,28 @@ exports.deleteBlogs = async (req, res) => {
         // 2. check if the blog exists
         if(!blog){
             return res.status(404).json({
-                message: 'Blog not found'
+                message: "Blog not found"
             });
         }
 
         // 3. check if the user is authorised to delete the blog
         if(blog.author.toString !== req.user._id){
             return res.status(403).json({
-                message: 'Unauthorised'
+                message: "Unauthorised"
             });
         }
 
         // 4. delete the blog record
         await blog.deleteOne();
         res.json({
-            message: 'Blog deleted successfully'
+            message: "Blog deleted successfully"
         });
     } catch (err) {
         res.status(500).json({
             error: err.message
         });
     }
-}
+};
 
 // 6. Like feature
 exports.toggleLike = async (req, res) => {
@@ -122,7 +122,7 @@ exports.toggleLike = async (req, res) => {
         // 2. check if the blog exits
         if(!blog){
             return res.status(404).json({
-               message: 'Blog not found'
+               message: "Blog not found"
             });
         }
 
@@ -146,7 +146,7 @@ exports.toggleLike = async (req, res) => {
             error: err.message
         });
     }
-}
+};
 
 // 7. Get blogs based on tags
 exports.getBlogsByTag = async (req, res) => {
@@ -161,4 +161,83 @@ exports.getBlogsByTag = async (req, res) => {
             error: err.message
         });
     }
-}
+};
+
+// 8. Ratings (1-5 stars)
+exports.rateBlog = async (req, res) => {
+    const { value } = req.body;
+
+    // 1. check if the rating is in a valid range
+    if(value < 1 && value > 5){
+        return res.status(400).json({
+            message: "Rating must be on a scale of 1-5"
+        }); // 400: Bad request
+    }
+
+    // 2. check if the blog exists
+    const blog = await Blog.findById(req.params.id);
+    if(!blog){
+        return res.status(404).json({
+            message: "Blog not found"
+        });
+    }
+
+    // 3. check the status of current rating and also is the person authorised to give rating
+    const existingRating = blog.ratings.find(r => r.user.toString() === req.user._id);
+    
+    // 4. check if u have given rating, u can update the ratings as well
+    if(existingRating){
+        existingRating.value = value; // update if the rating already exits
+    } else {
+        blog.ratings.push({
+            user: req.user._id, 
+            value
+        });
+    }
+
+    // 5. save it in the DB
+    await blog.save();
+    
+    // 6. calculate avg ratings 
+    const avgRating = (
+        blog.ratings.reduce((sum, r) => sum + r.value, 0) / blog.ratings.length
+    ).toFixed(1);
+
+    res.json({
+        message: "Ratings submitted",
+        average: avgRating
+    });
+};
+
+// 9. add/remove Bookmarks
+exports.toogleBookmark = async (req, res) => {
+    // 1. grab the user and and his blog id
+    const user = await Blog.findById(req.user._id);
+    const blogId = await req.params.id;
+
+    // 2. check if the blog id exits in DB
+    const isBookmarked = user.bookmarkedBlogs.includes(blogId);
+
+    // 3. toogle the bookmark just like 'like' feature
+    if(isBookmarked){
+        // if the blog is bookmarked, then remove it
+        user.bookmarkedBlogs.pull(blogId);
+        await user.save();
+        return res.json({
+            message: "Bookmark is removed"
+        });
+    } else {
+        // if the blog is not bookmarked, then bookmark it
+        user.bookmarkedBlogs.push(blogId);
+        await user.save();
+        return res.json({
+            message: "Bookmarked the blog"
+        })
+    }
+};
+
+// 10. display all the bookmarked blogs
+exports.getBookmarks = async (req, res) => {
+    const user = await Blog.findById(req.user._id).populate('bookmarkedBlogs');
+    res.json(user.bookmarkedBlogs);
+};

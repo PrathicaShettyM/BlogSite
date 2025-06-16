@@ -14,5 +14,7 @@ router.post('/', protect, blogController.createBlog);
 router.put('/:id', protect, blogController.updateBlog);
 router.delete('/:id', protect, blogController.deleteBlogs);
 router.post('/:id/like', protect, blogController.toggleLike);
+router.post('/:id/rate', protect, blogController.rateBlog);
+router.get('/bookmarks/user', protect, blogController.getBookmarks);
 
 module.exports = router;

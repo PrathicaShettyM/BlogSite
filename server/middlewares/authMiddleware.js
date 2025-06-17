@@ -17,6 +17,7 @@ const protect = (req, res, next) => {
         req.user = decoded.id;
         next();
     } catch (error) {
+        console.log('Token verification failed: ', error);
         return res.status(401).json({
             msg: 'Invalid Token'
         });
@@ -24,3 +25,5 @@ const protect = (req, res, next) => {
 }
 
 module.exports = protect;
+
+// explore express-rate-limit for rate-limit login attempt

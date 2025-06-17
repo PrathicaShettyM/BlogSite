@@ -11,11 +11,11 @@ exports.createBlog = async (req, res) => {
         const {title, content, tags} = req.body;
         
         // 2. create blog
-        const blog = await Blog.create({title, content, tags, author: user._id });
-        res.send(201).json(blog); // 201: created successfully
+        const blog = await Blog.create({title, content, tags, author: req.user._id });
+        res.status(201).json(blog); // 201: created successfully
     } catch (err) {
         res.status(400).json({
-            error: err.message
+            error: 'Create blog error: ' + err.message
         }); // 400: Bad request (server cant process or client-side error)
     }
 };
@@ -28,7 +28,7 @@ exports.getAllBlogs = async (req, res) => {
         res.json(blogs);
     } catch (err) {
         res.status(500).json({
-            error: err.message
+            error: 'Get all blogs error: ' + err.message
         }); // 500: Internal server error
     }
 };
@@ -37,17 +37,18 @@ exports.getAllBlogs = async (req, res) => {
 exports.getBlogsById = async (req, res) => {
     try {
         // 1. find the blogs by id
-        const blog = await Blog.findById(req.params,id).populate('author', 'username');
+        const blog = await Blog.findById(req.params.id).populate('author', 'username');
         
         // 2. check if the blog exits
         if(!blog){
-            return res.send(404).json({
+            return res.status(404).json({
                 message: "Blog not found"
             }); // 404: not found
         }
+        res.json(blog);
     } catch (err) {
         res.status(500).json({
-            error: err.message 
+            error: 'Get blogs by ID error: ' + err.message 
         }); // 500: Internal server error
     }
 }
@@ -58,21 +59,21 @@ exports.updateBlog = async (req, res) => {
     // 1. fetch the author
         const blog = await Blog.findById(req.params.id);
         if(!blog){
-            res.status(404).json({
+            return res.status(404).json({
                 message: "Blog not found"
             }); // 404: Not found
         }
     // 2. check if the user is authorised to update the blog
-        if(blog.author.toString() !== req.user._id){
+        if(blog.author.toString() !== req.user._id.toString()){
             return res.status(403).json({
                 message: "Unauthorised"
             }); // 403: Forbidden/Unauthorised
         }
     
     // 3. Update logic: keep the previous title, content as it is. just see if ur able to get new content/title from req.body
-        blog.title = blog.title || req.body.title;
-        blog.content = blog.content || req.body.content;
-        blog.tags = blog.tags || req.body.tags;
+        blog.title = req.body.title || blog.title;
+        blog.content = req.body.content ||  blog.content;
+        blog.tags = req.body.tags || blog.tags;
         blog.updatedAt = Date.now();
     
     // 4. save the changes     
@@ -80,7 +81,7 @@ exports.updateBlog = async (req, res) => {
         res.json(blog);
     } catch (err) {
         res.status(500).json({
-            error: err.message
+            error: 'Update blog error: ' + err.message
         });
     }
 };
@@ -99,7 +100,7 @@ exports.deleteBlogs = async (req, res) => {
         }
 
         // 3. check if the user is authorised to delete the blog
-        if(blog.author.toString !== req.user._id){
+        if(blog.author.toString() !== req.user._id.toString()){
             return res.status(403).json({
                 message: "Unauthorised"
             });
@@ -112,7 +113,7 @@ exports.deleteBlogs = async (req, res) => {
         });
     } catch (err) {
         res.status(500).json({
-            error: err.message
+            error: 'Error deleting the blog: ' + err.message
         });
     }
 };
@@ -146,7 +147,7 @@ exports.toggleLike = async (req, res) => {
         });
     } catch (err) {
         res.status(500).json({
-            error: err.message
+            error: 'Error while liking the blog: ' + err.message
         });
     }
 };
@@ -159,19 +160,20 @@ exports.getBlogsByTag = async (req, res) => {
         // find the blogs based on the tags
         const blogs = await Blog.find({tags: tag}).populate('author', 'username');
         res.json(blogs);
-    } catch (error) {
+    } catch (err) {
         res.status(500).json({
-            error: err.message
+            error: 'Get Blogs by tag error: ' + err.message
         });
     }
 };
 
 // 8. Ratings (1-5 stars)
 exports.rateBlog = async (req, res) => {
-    const { value } = req.body;
+    try {
+        const { value } = req.body;
 
     // 1. check if the rating is in a valid range
-    if(value < 1 && value > 5){
+    if(value < 1 || value > 5){
         return res.status(400).json({
             message: "Rating must be on a scale of 1-5"
         }); // 400: Bad request
@@ -186,7 +188,7 @@ exports.rateBlog = async (req, res) => {
     }
 
     // 3. check the status of current rating and also is the person authorised to give rating
-    const existingRating = blog.ratings.find(r => r.user.toString() === req.user._id);
+    const existingRating = blog.ratings.find((r) => r.user.toString() === req.user._id.toString());
     
     // 4. check if u have given rating, u can update the ratings as well
     if(existingRating){
@@ -210,39 +212,60 @@ exports.rateBlog = async (req, res) => {
         message: "Ratings submitted",
         average: avgRating
     });
+    } catch (err) {
+        res.status(500).json({
+            error: "Error Submitting rating: " + err.message
+        })
+    }
 };
 
 // 9. add/remove Bookmarks
-exports.toogleBookmark = async (req, res) => {
-    // 1. grab the user and and his blog id
-    const user = await Blog.findById(req.user._id);
-    const blogId = await req.params.id;
+exports.toggleBookmark = async (req, res) => {
+    try {
+        // 1. grab the user and and his blog id
+        const user = await User.findById(req.user._id);
+        const blogId = req.params.id;
 
-    // 2. check if the blog id exits in DB
-    const isBookmarked = user.bookmarkedBlogs.includes(blogId);
+        // 2. check if the blog id exits in DB
+        const isBookmarked = user.bookmarkedBlogs.includes(blogId);
 
-    // 3. toogle the bookmark just like 'like' feature
-    if(isBookmarked){
-        // if the blog is bookmarked, then remove it
-        user.bookmarkedBlogs.pull(blogId);
-        await user.save();
-        return res.json({
-            message: "Bookmark is removed"
+        // 3. toogle the bookmark just like 'like' feature
+        if(isBookmarked){
+            // if the blog is bookmarked, then remove it
+            user.bookmarkedBlogs.pull(blogId);
+            await user.save();
+            return res.json({
+                message: "Bookmark is removed"
+            });
+        } else {
+            // if the blog is not bookmarked, then bookmark it
+            user.bookmarkedBlogs.push(blogId);
+            await user.save();
+            return res.json({
+                message: "Bookmarked the blog"
+            })
+        }
+    } catch (err) {
+        res.status(500).json({
+            error: 'Bookmark toggle error: ' + err.message
         });
-    } else {
-        // if the blog is not bookmarked, then bookmark it
-        user.bookmarkedBlogs.push(blogId);
-        await user.save();
-        return res.json({
-            message: "Bookmarked the blog"
-        })
     }
 };
 
 // 10. display all the bookmarked blogs
 exports.getBookmarks = async (req, res) => {
-    const user = await Blog.findById(req.user._id).populate('bookmarkedBlogs');
-    res.json(user.bookmarkedBlogs);
+    try {
+        const user = await User.findById(req.user._id).populate('bookmarkedBlogs');
+        if (!user) {
+            return res.status(404).json({ message: "User not found" });
+        }
+
+        res.json(user.bookmarkedBlogs);
+    } catch (err) {
+        res.status(500).json({
+            error: "Error fetching bookmarks: " + err.message,
+        });
+    }
 };
 
 // 11. search and pagenation
@@ -279,7 +302,7 @@ exports.getBlogsWithQuery = async (req, res) => {
             {
                 $addFields: {
                     likesCount: {$size: "$likes"},
-                    avgRating: {$avg: "$ratings.rating"}
+                    avgRating: {$avg: "$ratings.value"}
                 }
             },
             {$sort: sortOptions},
@@ -299,7 +322,7 @@ exports.getBlogsWithQuery = async (req, res) => {
 exports.getUserProfile = async (req, res) => {
     try {
         // fetch the user
-        const user = await User.findOne(req.user._id)
+        const user = await User.findById(req.user._id)
         .select('-password')
         .populate('bookmarkedBlogs', 'title createdAt');
 
@@ -326,7 +349,7 @@ exports.updateUserProfile = async (req, res) => {
             req.user._id,
             {name, location, bio},
             {new: true}
-        ).select('password');
+        ).select('-password');
 
         res.json({
             message: 'Profile updated successfully',

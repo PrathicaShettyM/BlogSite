@@ -1,12 +1,37 @@
 const User = require('../models/User');
 const bcrypt = require('bcryptjs');
-const jwt = require('jsonwebtoken');
 const generateToken = require('../utils/generateToken');
+
+// email and password regex for security purposes
+const emailRegex = /^\S+@\S+\.\S+$/;
+const passwordRegex = /^(?=.*[A-Z])(?=.*[a-z])(?=.*\d)(?=.*[@$!%*#?&])[A-Za-z\d@$!%*#?&]{8,}$/;
 
 // 1. Regsiter user
 exports.registerUser = async (req, res) => {
-    // grab user credentials
-    const {name, email, password} = req.body;
+    // grab user credentials and details
+    const {name, email, password, location, bio} = req.body;
+    
+    // if any of these dont exits throw an error
+    if(!name || !email || !password || !location || !bio){
+        return res.status(400).json({
+            msg: 'All fields are required'
+        });
+    }
+
+    // check email regex 
+    if(!emailRegex.test(email)){
+        return res.status(400).json({
+            msg: 'Invalid email format'
+        });
+    }
+
+    // check password regex
+    if(!passwordRegex.test(password)){
+        return res.status(400).json({
+            msg: 'Password must be atleast 8 characters long, including uppercase, lowercase, numbers and special characters'
+        });
+    }
+    
     try {
         // 1. before registering, check if the user exits 
         const userExists = await User.findOne({email});
@@ -16,7 +41,7 @@ exports.registerUser = async (req, res) => {
 
         // 2. encrypt the passwords, if its a new registeration
         const hashed = await bcrypt.hash(password, 10);
-        const user = await User.create({name, email, password: hashed});
+        const user = await User.create({name, email, password: hashed, location, bio});
 
         res.status(201).json({
             // user registered successfully
@@ -32,10 +57,17 @@ exports.registerUser = async (req, res) => {
 exports.loginUser = async (req, res) => {
     // grab email and password for login
     const {email, password} = req.body;
+    if(!email || !password){
+        return res.status(400).json({
+            msg: 'Email and password are required'
+        });
+    }
+
     try {
         const user = await User.findOne({email});
+        
         // if user doesnt exists or user doesnt enter his password
-        if(!user || !user.password){ // dbt
+        if(!user || !user.password){ // *dbt
             return res.status(400).json({
                 msg: 'Invalid credentials'
             });
@@ -46,34 +78,18 @@ exports.loginUser = async (req, res) => {
         if(!match){
             return res.status(400).json({
                 msg: 'Invalid credentials'
-            })
+            });
         }
-    } catch (error) {
-        res.status(500).json({
-            msg: 'Internal Server error for Email login'
-        })
-    }
-}
-
-// 3. Google oauth login
-exports.googleLogin = async (req, res) => {
-    // grab user data
-    const {tokenId, name, email, googleId} = req.body;
-    try {
-        let user = await User.findOne({email});
-        
-        // 1. if user doesnt exist, create a new user
-        if(!user){
-            user = await User.create({name, email, googleId});
-        }      
 
         res.json({
             user: {id: user._id, name: user.name, email: user.email},
             token: generateToken(user._id),
         });
+
     } catch (error) {
+        console.log(error);
         res.status(500).json({
-            msg: 'Google login failed'
+            msg: 'Internal Server error for Email login'
         })
     }
-};
+}
